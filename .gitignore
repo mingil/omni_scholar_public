@@ -1,0 +1,35 @@
+# Environments & Secrets (개인 비밀번호 및 API 키는 절대 Git에 업로드되지 않음)
+.env
+.env.*
+!.env.example
+
+# Python Cache & Testing
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+venv/
+.venv/
+
+# Logs & Local Scratch Files
+*.log
+*.log.*
+all_code_for_ai.txt
+omni_scholar_context.txt
+export_code.py
+
+# Downloaded/Exported Files
+*.xlsx
+*.docx
+*.ris
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+
+# Ignore ad-hoc manual debug scripts in tests/, keep only unit test suite test_core.py
+tests/analyze_token.py
+tests/test_429_reason.py
+tests/test_api.py
+tests/test_cf.py
+tests/test_deep_api.py

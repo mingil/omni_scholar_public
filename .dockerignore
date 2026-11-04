@@ -1,0 +1,24 @@
+# Git
+.git
+.gitignore
+
+# Environment variables & Secrets (도커 컨테이너 내부에 환경변수 파일 박제 방지)
+.env
+.env.*
+
+# Virtual Environments (가상환경 파일 복사 방지)
+venv/
+env/
+lsiopy/
+
+# Cache & Logs (캐시 및 로그 복사 방지)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.log
+
+# AI Context & Tests (운영에 필요 없는 테스트 및 텍스트 파일 복사 방지)
+tests/
+all_code_for_ai.txt
+omni_scholar_context.txt

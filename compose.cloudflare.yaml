@@ -1,0 +1,42 @@
+# ==============================================================================
+# 🌐 OmniScholar + Cloudflare Tunnel Integrated Stack (compose.cloudflare.yaml)
+# 공유기 포트포워딩이나 SSL 인증서 발급 없이, Cloudflare에 등록된 내 도메인으로
+# 즉시 외부 HTTPS 접속(예: https://scholar.yourdomain.com)을 열어주는 통합 구성입니다.
+#
+# 실행 방법:
+#   1. .env 파일에 CF_TUNNEL_TOKEN="발급받은_터널_토큰" 입력
+#   2. docker compose -f compose.cloudflare.yaml up -d
+#   3. Cloudflare Zero Trust 대시보드의 Public Hostname에서
+#      Service Type: HTTP, URL: omni_public:8501 로 지정하면 즉시 연결됩니다!
+# ==============================================================================
+
+services:
+  omni_public:
+    # 공식 이미지 (Docker Hub: kimmingil/omni_scholar_public:latest / GitHub GHCR: ghcr.io/mingil/omni_scholar_public:latest)
+    image: kimmingil/omni_scholar_public:latest
+    build: .
+    container_name: omni_scholar_public
+    user: "${PUID:-1026}:${PGID:-100}"
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-18502}:8501"
+    environment:
+      - HOME=/tmp
+      - OPENALEX_EMAIL=${OPENALEX_EMAIL:-}
+      - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}
+      - APP_PASSWORD=${APP_PASSWORD:-}
+      - CF_ZONE_ID=${CF_ZONE_ID:-}
+      - CF_API_TOKEN=${CF_API_TOKEN:-}
+      - CF_DOMAIN=${CF_DOMAIN:-}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: omni_scholar_tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    depends_on:
+      - omni_public
