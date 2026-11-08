@@ -1,4 +1,5 @@
 import re
+import functools
 import difflib
 import requests
 from modules.logger_setup import logger
@@ -26,6 +27,8 @@ KO_ACADEMIC_THESAURUS = {
     "편마비": "(hemiparesis OR hemiplegia)",
     "경직": "spasticity",
     "실어증": "aphasia",
+    "편측무시": '("unilateral neglect" OR "hemispatial neglect")',
+    "근막통증증후군": '"myofascial pain syndrome"',
     "구음장애": "dysarthria",
     "인지재활": '"cognitive rehabilitation"',
     "인지장애": '"cognitive impairment"',
@@ -479,6 +482,9 @@ KO_FILLER_PATTERNS = [
 ]
 
 
+KO_SINGLE_STOP = {"후", "및", "등", "것", "수", "때", "중", "간", "전", "시", "더", "또", "그", "이", "저", "좀", "잘"}
+
+
 def detect_and_correct_typos(raw_text: str) -> dict:
     """
     Inspects user input (Korean or English) for common academic/medical typos and fuzzy misspellings.
@@ -617,19 +623,34 @@ def suggest_closest_table_terms(user_kw: str, candidate_strings: list, limit: in
     return results[:limit]
 
 
+_TRANSLATORS = (
+    # (이름, URL, 파라미터 생성, 응답 해석) — 위에서부터 차례로 시도, 하나라도 성공하면 사용
+    ("google-dict", "https://clients5.google.com/translate_a/t",
+     lambda t: {"client": "dict-chrome-ex", "sl": "ko", "tl": "en", "q": t},
+     lambda j: (j[0] if isinstance(j[0], str) else j[0][0]) if isinstance(j, list) and j else ""),
+    ("google-gtx", "https://translate.googleapis.com/translate_a/single",
+     lambda t: {"client": "gtx", "sl": "ko", "tl": "en", "dt": "t", "q": t},
+     lambda j: "".join(part[0] for part in j[0] if part and part[0]) if j and isinstance(j[0], list) else ""),
+    ("mymemory", "https://api.mymemory.translated.net/get",
+     lambda t: {"q": t, "langpair": "ko|en"},
+     lambda j: (j.get("responseData") or {}).get("translatedText", "") if j.get("responseStatus") == 200 else ""),
+)
+
+
+@functools.lru_cache(maxsize=1024)
 def _translate_ko_to_en_fallback(text):
-    """Lightweight fallback translation via Google GTX free endpoint if unmapped Korean words remain."""
-    try:
-        url = "https://translate.googleapis.com/translate_a/single"
-        params = {"client": "gtx", "sl": "ko", "tl": "en", "dt": "t", "q": text}
-        res = requests.get(url, params=params, timeout=3)
-        if res.status_code == 200:
-            data = res.json()
-            if data and isinstance(data[0], list):
-                translated = "".join([part[0] for part in data[0] if part and part[0]])
-                return translated.strip()
-    except Exception as e:
-        logger.debug(f"[QUERY_OPT] Translation fallback skipped: {e}")
+    """사전에 없는 한국어를 영어로 번역. 무료 번역 3곳을 차례로 시도하고 결과는 기억(캐시)한다.
+    전부 실패하면 빈 문자열 → 호출한 쪽에서 '빠진 단어'로 사용자에게 경고한다."""
+    for name, url, mk_params, parse in _TRANSLATORS:
+        try:
+            res = requests.get(url, params=mk_params(text), timeout=5)
+            if res.status_code == 200:
+                out = (parse(res.json()) or "").strip()
+                if out and not re.search(r"[가-힣]", out):
+                    return out
+            logger.debug(f"[QUERY_OPT] translator {name} -> HTTP {res.status_code}")
+        except Exception as e:
+            logger.debug(f"[QUERY_OPT] translator {name} failed: {e}")
     return ""
 
 
@@ -722,10 +743,22 @@ def optimize_search_query(raw_query: str) -> dict:
         remaining_ko = re.sub(r"[^가-힣\s]", " ", working_text).strip()
 
         # If there are still meaningful unmapped Korean words (and we haven't already extracted enough tokens)
-        if remaining_ko and len(remaining_ko) >= 2:
-            translated_en = _translate_ko_to_en_fallback(remaining_ko if not extracted_tokens else q_clean)
-            if not translated_en:
-                dropped_ko = [w for w in remaining_ko.split() if len(w) >= 2]
+        # 한 글자 단어(팔·손·목 등)도 번역 대상. 의미 없는 한 글자 기능어만 제외
+        leftover_words = [w for w in remaining_ko.split() if w not in KO_SINGLE_STOP]
+        if leftover_words:
+            translated_en = _translate_ko_to_en_fallback(" ".join(leftover_words)) if leftover_words else ""
+            if not translated_en and extracted_tokens:
+                # 묶어서 번역이 실패하면 단어별로 한 번 더 시도
+                parts = []
+                for w in leftover_words:
+                    w_en = _translate_ko_to_en_fallback(w)
+                    if w_en:
+                        parts.append(w_en)
+                    else:
+                        dropped_ko.append(w)
+                translated_en = " ".join(parts)
+            elif not translated_en:
+                dropped_ko = list(leftover_words)
             if translated_en and not extracted_tokens:
                 working_text = translated_en
                 has_korean = False
@@ -736,7 +769,7 @@ def optimize_search_query(raw_query: str) -> dict:
                         extracted_tokens.append(rt)
 
         if extracted_tokens:
-            core_tokens = extracted_tokens[:5]
+            core_tokens = extracted_tokens  # 개수 제한 없음: 입력한 개념이 조용히 빠지지 않도록
             optimized_q = " ".join(core_tokens)
             fallback_q = " OR ".join(core_tokens[:3]) if len(core_tokens) >= 2 else optimized_q
             return {
@@ -765,10 +798,11 @@ def optimize_search_query(raw_query: str) -> dict:
             "typo_corrected": bool(typo_pairs),
             "typo_pairs": typo_pairs,
             "explanation_ko": f"검색어(`{cleaned or q_clean}`)를 적용했습니다.{typo_note_ko}",
-            "explanation_en": f"Applied search query (`{cleaned or q_clean}`).{typo_note_en}"
+            "explanation_en": f"Applied search query (`{cleaned or q_clean}`).{typo_note_en}",
+            "dropped_terms": dropped_ko
         }
 
-    core_en = en_tokens[:5]
+    core_en = en_tokens  # 개수 제한 없음
     optimized_en = " ".join(core_en)
     fallback_en = " ".join(core_en[:3]) if len(core_en) > 3 else (" OR ".join(core_en) if len(core_en) >= 2 else optimized_en)
     was_mod = (optimized_en.lower() != q.lower().strip()) or bool(typo_pairs)
@@ -781,7 +815,8 @@ def optimize_search_query(raw_query: str) -> dict:
         "typo_corrected": bool(typo_pairs),
         "typo_pairs": typo_pairs,
         "explanation_ko": f"핵심 학술 키워드(`{optimized_en}`)를 추출했습니다.{typo_note_ko}" if was_mod else "",
-        "explanation_en": f"Extracted core academic concepts (`{optimized_en}`).{typo_note_en}" if was_mod else ""
+        "explanation_en": f"Extracted core academic concepts (`{optimized_en}`).{typo_note_en}" if was_mod else "",
+        "dropped_terms": dropped_ko
     }
 
 
