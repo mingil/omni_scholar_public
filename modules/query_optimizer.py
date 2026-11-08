@@ -63,6 +63,11 @@ KO_ACADEMIC_THESAURUS = {
     "예방": "prevention",
     "기능": "function",
     "회복": "recovery",
+    "속도": "speed",
+    "강도": "intensity",
+    "만족도": "satisfaction",
+    "운동": "exercise",
+    "조사": "survey",
     "작업치료": '"occupational therapy"',
     "언어치료": '"speech therapy"',
     "파킨슨병": "Parkinson",
@@ -470,7 +475,7 @@ KO_FILLER_PATTERNS = [
     r"찾아줘요?", r"찾아주세요", r"찾아봐줘", r"알려줘요?", r"알려주세요", r"검색해줘요?", r"검색해주세요",
     r"보여줘요?", r"보여주세요", r"추천해줘", r"무엇인가요", r"어떤가요", r"있나요", r"할까요",
     r"관한", r"대한", r"관련된", r"관련", r"최신", r"최근", r"대표적인", r"핵심", r"효과", r"영향", r"분석",
-    r"치료법", r"치료", r"방법"
+    r"치료법", r"치료", r"방법", r"에\s*따른", r"따른", r"개선", r"향상"
 ]
 
 
@@ -712,7 +717,8 @@ def optimize_search_query(raw_query: str) -> dict:
         # Strip Korean conversational fillers & particles
         for pat in KO_FILLER_PATTERNS:
             working_text = re.sub(pat, " ", working_text)
-        working_text = re.sub(r"\b[가-힣]+?(?:은|는|이|가|을|를|의|에|와|과|로|도|만)\b", " ", working_text)
+        # 조사만 떼고 단어는 남긴다 (예전엔 단어째 지워 속도·강도·만족도처럼 '도/이/가/만/로'로 끝나는 단어가 사라졌음)
+        working_text = re.sub(r"\b([가-힣]{2,}?)(?:은|는|을|를|의|에|와|과)\b", r"\1", working_text)
         remaining_ko = re.sub(r"[^가-힣\s]", " ", working_text).strip()
 
         # If there are still meaningful unmapped Korean words (and we haven't already extracted enough tokens)
