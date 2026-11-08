@@ -1,4 +1,5 @@
 import re
+import time
 import functools
 import difflib
 import requests
@@ -63,6 +64,43 @@ KO_ACADEMIC_THESAURUS = {
     "무릎": "knee",
     "척추": "spine",
     "초음파": "ultrasound",
+    "골절": "fracture",
+    "도수치료": '("manual therapy" OR "spinal manipulation")',
+    "인지행동치료": '"cognitive behavioral therapy"',
+    "인공관절": '(arthroplasty OR "joint replacement")',
+    "코로나19": '("COVID-19" OR "SARS-CoV-2")',
+    "코로나": '("COVID-19" OR "SARS-CoV-2")',
+    "부작용": '("adverse events" OR "side effects")',
+    "미세먼지": '("particulate matter" OR PM2.5)',
+    "수면의 질": '"sleep quality"',
+    "전기차": '("electric vehicle" OR EV)',
+    "자폐": "autism",
+    "자폐 스펙트럼 장애": '"autism spectrum disorder"',
+    "자폐스펙트럼장애": '"autism spectrum disorder"',
+    "조기 진단": '"early diagnosis"',
+    "조기진단": '"early diagnosis"',
+    "장기 추적": '"long-term follow-up"',
+    "사회적 고립": '"social isolation"',
+    "대학생": '"college students"',
+    "초등학생": '"elementary school"',
+    "중학생": '"middle school"',
+    "고등학생": '"high school"',
+    "청소년": "(adolescent OR adolescents OR youth)",
+    "중독": "addiction",
+    "스마트폰": "smartphone",
+    "동물매개치료": '"animal-assisted therapy"',
+    "동물 매개 치료": '"animal-assisted therapy"',
+    "반려동물 매개 치료": '"animal-assisted therapy"',
+    "반려동물": '(pet OR "companion animal")',
+    "재택근무": '("remote work" OR telework)',
+    "직무 만족도": '"job satisfaction"',
+    "수명": "lifespan",
+    "위험": "risk",
+    "주사": "injection",
+    "수학": "mathematics",
+    "대한민국": "Korea",
+    "한국": "Korea",
+    "의료정책": '"health policy"',
     "예방": "prevention",
     "기능": "function",
     "회복": "recovery",
@@ -109,7 +147,9 @@ KO_ACADEMIC_THESAURUS = {
     "예측": "prediction",
     "사망률": "mortality",
     "노인": "(elderly OR geriatric)",
-    "소아": "pediatric",
+    "소아": "(pediatric OR child OR children)",
+    "아동": "(pediatric OR child OR children)",
+    "어린이": "(pediatric OR child OR children)",
     "우울증": "depression",
     "조현병": "schizophrenia",
     "불안장애": "anxiety",
@@ -478,11 +518,17 @@ KO_FILLER_PATTERNS = [
     r"찾아줘요?", r"찾아주세요", r"찾아봐줘", r"알려줘요?", r"알려주세요", r"검색해줘요?", r"검색해주세요",
     r"보여줘요?", r"보여주세요", r"추천해줘", r"무엇인가요", r"어떤가요", r"있나요", r"할까요",
     r"관한", r"대한", r"관련된", r"관련", r"최신", r"최근", r"대표적인", r"핵심", r"효과", r"영향", r"분석",
-    r"치료법", r"치료", r"방법", r"에\s*따른", r"따른", r"개선", r"향상"
+    r"(?<![가-힣])치료법(?![가-힣])", r"(?<![가-힣])치료(?![가-힣])", r"(?<![가-힣])방법(?![가-힣])",
+    r"에\s*따른", r"(?<![가-힣])따른(?![가-힣])", r"(?<![가-힣])개선(?![가-힣])", r"(?<![가-힣])향상(?![가-힣])",
+    # 서술어(…에 미치는, …을 위한 등): 번역하면 엉뚱한 단어(crazy 등)가 섞임
+    r"(?<![가-힣])[가-힣]*(?:미치는|미친|위한|통한|하는|되는|있는|없는|이용한|활용한|대한|관한)(?![가-힣])"
 ]
 
 
-KO_SINGLE_STOP = {"후", "및", "등", "것", "수", "때", "중", "간", "전", "시", "더", "또", "그", "이", "저", "좀", "잘"}
+# 한 글자 기능어 + 사전 단어를 떼어 내고 남은 조사(예: "근감소증과" → "과" → lesson으로 번역되던 문제)
+KO_SINGLE_STOP = {"후", "및", "등", "것", "수", "때", "중", "간", "전", "시", "더", "또", "그", "이", "저", "좀", "잘",
+                  "가", "과", "와", "은", "는", "을", "를", "의", "에", "로", "도", "만", "나", "랑", "께",
+                  "으로", "에서", "에게", "와의", "과의", "이나", "에도", "까지", "부터", "보다", "처럼"}
 
 
 def detect_and_correct_typos(raw_text: str) -> dict:
@@ -637,21 +683,51 @@ _TRANSLATORS = (
 )
 
 
-@functools.lru_cache(maxsize=1024)
+_TR_CACHE = {}            # 성공한 번역만 기억 (실패는 기억하지 않아 다음에 다시 시도)
+_TR_BLOCKED_UNTIL = {}    # 막힌(429 등) 번역기는 10분 쉬게 해 차단이 길어지지 않도록
+
+
 def _translate_ko_to_en_fallback(text):
-    """사전에 없는 한국어를 영어로 번역. 무료 번역 3곳을 차례로 시도하고 결과는 기억(캐시)한다.
+    """사전에 없는 한국어를 영어로 번역. 무료 번역 3곳을 차례로 시도한다.
     전부 실패하면 빈 문자열 → 호출한 쪽에서 '빠진 단어'로 사용자에게 경고한다."""
+    text = (text or "").strip()
+    if not text:
+        return ""
+    if text in _TR_CACHE:
+        return _TR_CACHE[text]
+    now = time.time()
     for name, url, mk_params, parse in _TRANSLATORS:
+        if _TR_BLOCKED_UNTIL.get(name, 0) > now:
+            continue
         try:
             res = requests.get(url, params=mk_params(text), timeout=5)
             if res.status_code == 200:
                 out = (parse(res.json()) or "").strip()
-                if out and not re.search(r"[가-힣]", out):
+                # 번역 메모리형 서비스(MyMemory)는 엉뚱하게 긴 문장을 주기도 함 → 길이가 비정상이면 다음 번역기로
+                too_long = len(out.split()) > max(4, 3 * len(text.split()))
+                if out and not too_long and not re.search(r"[가-힣]", out):
+                    _TR_CACHE[text] = out
                     return out
+            elif res.status_code in (403, 429):
+                _TR_BLOCKED_UNTIL[name] = now + 600
             logger.debug(f"[QUERY_OPT] translator {name} -> HTTP {res.status_code}")
         except Exception as e:
             logger.debug(f"[QUERY_OPT] translator {name} failed: {e}")
     return ""
+
+
+def _translate_word_list(words):
+    """단어들을 '초등학생, 수학, 학습, 동기'처럼 쉼표 목록으로 한 번에 번역해 단어별로 짝지은다.
+    (문장으로 번역하면 번역기가 단어를 빼먹는 경우가 있음 — 예: 수학 누락)
+    개수가 안 맞으면 단어별로 번역한다. 반환: {한국어 단어: 영어(실패 시 "")}"""
+    words = list(dict.fromkeys(words))
+    if len(words) == 1:
+        return {words[0]: _translate_ko_to_en_fallback(words[0])}
+    joined = _translate_ko_to_en_fallback(", ".join(words))
+    parts = [x.strip(" .;") for x in re.split(r"[,、，]", joined)] if joined else []
+    if joined and len(parts) == len(words) and all(parts):
+        return dict(zip(words, parts))
+    return {w: _translate_ko_to_en_fallback(w) for w in words}
 
 
 def optimize_search_query(raw_query: str) -> dict:
@@ -746,26 +822,16 @@ def optimize_search_query(raw_query: str) -> dict:
         # 한 글자 단어(팔·손·목 등)도 번역 대상. 의미 없는 한 글자 기능어만 제외
         leftover_words = [w for w in remaining_ko.split() if w not in KO_SINGLE_STOP]
         if leftover_words:
-            translated_en = _translate_ko_to_en_fallback(" ".join(leftover_words)) if leftover_words else ""
-            if not translated_en and extracted_tokens:
-                # 묶어서 번역이 실패하면 단어별로 한 번 더 시도
-                parts = []
-                for w in leftover_words:
-                    w_en = _translate_ko_to_en_fallback(w)
-                    if w_en:
-                        parts.append(w_en)
-                    else:
-                        dropped_ko.append(w)
-                translated_en = " ".join(parts)
-            elif not translated_en:
-                dropped_ko = list(leftover_words)
+            word_map = _translate_word_list(leftover_words)
+            dropped_ko.extend(w for w in leftover_words if not word_map.get(w))
+            translated_en = " ".join(word_map[w] for w in leftover_words if word_map.get(w))
             if translated_en and not extracted_tokens:
                 working_text = translated_en
                 has_korean = False
             elif translated_en:
-                rem_opt = _extract_english_keywords(translated_en)
-                for rt in rem_opt:
-                    if rt.lower() not in " ".join(extracted_tokens).lower():
+                have = " ".join(extracted_tokens).lower()
+                for rt in _extract_english_keywords(translated_en):
+                    if rt.lower().strip('"') not in have:
                         extracted_tokens.append(rt)
 
         if extracted_tokens:
