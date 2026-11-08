@@ -88,6 +88,7 @@ KO_ACADEMIC_THESAURUS = {
     "청소년": "(adolescent OR adolescents OR youth)",
     "중독": "addiction",
     "스마트폰": "smartphone",
+    "소유": "ownership",
     "동물매개치료": '"animal-assisted therapy"',
     "동물 매개 치료": '"animal-assisted therapy"',
     "반려동물 매개 치료": '"animal-assisted therapy"',
@@ -716,6 +717,13 @@ def _translate_ko_to_en_fallback(text):
     return ""
 
 
+def _looks_romanized(ko, en):
+    """번역 대신 소리 나는 대로 적은 결과(예: 소유 → \"su you\")인지 대략 판별."""
+    syll = len(re.findall(r"[가-힣]", ko or ""))
+    toks = re.findall(r"[A-Za-z]+", en or "")
+    return syll >= 2 and len(toks) == syll and all(len(t) <= 4 for t in toks)
+
+
 def _translate_word_list(words):
     """단어들을 '초등학생, 수학, 학습, 동기'처럼 쉼표 목록으로 한 번에 번역해 단어별로 짝지은다.
     (문장으로 번역하면 번역기가 단어를 빼먹는 경우가 있음 — 예: 수학 누락)
@@ -726,8 +734,14 @@ def _translate_word_list(words):
     joined = _translate_ko_to_en_fallback(", ".join(words))
     parts = [x.strip(" .;") for x in re.split(r"[,、，]", joined)] if joined else []
     if joined and len(parts) == len(words) and all(parts):
-        return dict(zip(words, parts))
-    return {w: _translate_ko_to_en_fallback(w) for w in words}
+        out = dict(zip(words, parts))
+    else:
+        out = {w: _translate_ko_to_en_fallback(w) for w in words}
+    for w, en in list(out.items()):
+        if en and _looks_romanized(w, en):
+            single = _translate_ko_to_en_fallback(w)
+            out[w] = "" if (not single or _looks_romanized(w, single)) else single
+    return out
 
 
 def optimize_search_query(raw_query: str) -> dict:
