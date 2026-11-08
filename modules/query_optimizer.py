@@ -20,6 +20,49 @@ KO_ACADEMIC_THESAURUS = {
     "재활치료": "rehabilitation",
     "재활": "rehabilitation",
     "물리치료": '"physical therapy"',
+    # 재활의학 용어 보강 (2026-11-08: 구글 무료 번역이 막히면 사전에 없는 단어가 조용히 빠지던 문제)
+    "상지": '("upper limb" OR "upper extremity")',
+    "하지": '("lower limb" OR "lower extremity")',
+    "편마비": "(hemiparesis OR hemiplegia)",
+    "경직": "spasticity",
+    "실어증": "aphasia",
+    "구음장애": "dysarthria",
+    "인지재활": '"cognitive rehabilitation"',
+    "인지장애": '"cognitive impairment"',
+    "인지기능": '"cognitive function"',
+    "통증": "pain",
+    "요통": '"low back pain"',
+    "근력": '"muscle strength"',
+    "운동치료": '"exercise therapy"',
+    "보행훈련": '"gait training"',
+    "보조기": "orthosis",
+    "외골격": "exoskeleton",
+    "기능적 전기자극": '"functional electrical stimulation"',
+    "전기자극": '"electrical stimulation"',
+    "거울치료": '"mirror therapy"',
+    "강제유도운동치료": '"constraint-induced movement therapy"',
+    "원격재활": "telerehabilitation",
+    "심장재활": '"cardiac rehabilitation"',
+    "호흡재활": '"pulmonary rehabilitation"',
+    "폐재활": '"pulmonary rehabilitation"',
+    "림프부종": "lymphedema",
+    "체외충격파": '"extracorporeal shockwave"',
+    "보툴리눔": "botulinum",
+    "보톡스": "botulinum",
+    "뇌성마비": '"cerebral palsy"',
+    "다발성 경화증": '"multiple sclerosis"',
+    "다발성경화증": '"multiple sclerosis"',
+    "일상생활동작": '"activities of daily living"',
+    "일상생활": '"activities of daily living"',
+    "삶의 질": '"quality of life"',
+    "낙상": "falls",
+    "어깨": "shoulder",
+    "무릎": "knee",
+    "척추": "spine",
+    "초음파": "ultrasound",
+    "예방": "prevention",
+    "기능": "function",
+    "회복": "recovery",
     "작업치료": '"occupational therapy"',
     "언어치료": '"speech therapy"',
     "파킨슨병": "Parkinson",
@@ -426,7 +469,8 @@ KO_FILLER_PATTERNS = [
     r"환자들?의?", r"환자", r"연구들?을?", r"연구", r"논문들?을?", r"논문",
     r"찾아줘요?", r"찾아주세요", r"찾아봐줘", r"알려줘요?", r"알려주세요", r"검색해줘요?", r"검색해주세요",
     r"보여줘요?", r"보여주세요", r"추천해줘", r"무엇인가요", r"어떤가요", r"있나요", r"할까요",
-    r"관한", r"대한", r"관련된", r"관련", r"최신", r"최근", r"대표적인", r"핵심", r"효과", r"영향", r"분석"
+    r"관한", r"대한", r"관련된", r"관련", r"최신", r"최근", r"대표적인", r"핵심", r"효과", r"영향", r"분석",
+    r"치료법", r"치료", r"방법"
 ]
 
 
@@ -646,6 +690,7 @@ def optimize_search_query(raw_query: str) -> dict:
 
     extracted_tokens = []
     working_text = q_clean
+    dropped_ko = []
 
     # 2. Handle Korean input (Natural language sentence or Korean keywords)
     if has_korean:
@@ -673,6 +718,8 @@ def optimize_search_query(raw_query: str) -> dict:
         # If there are still meaningful unmapped Korean words (and we haven't already extracted enough tokens)
         if remaining_ko and len(remaining_ko) >= 2:
             translated_en = _translate_ko_to_en_fallback(remaining_ko if not extracted_tokens else q_clean)
+            if not translated_en:
+                dropped_ko = [w for w in remaining_ko.split() if len(w) >= 2]
             if translated_en and not extracted_tokens:
                 working_text = translated_en
                 has_korean = False
@@ -693,8 +740,11 @@ def optimize_search_query(raw_query: str) -> dict:
                 "was_modified": True,
                 "typo_corrected": bool(typo_pairs),
                 "typo_pairs": typo_pairs,
-                "explanation_ko": f"한국어 입력을 분석하여 글로벌 학술 DB 맞춤 영문 검색식(`{optimized_q}`)으로 자동 변환했습니다.{typo_note_ko}",
+                "explanation_ko": f"한국어 입력을 분석하여 글로벌 학술 DB 맞춤 영문 검색식(`{optimized_q}`)으로 자동 변환했습니다.{typo_note_ko}"
+                + (f" ⚠️ 영어로 바꾸지 못해 빠진 단어: {', '.join(dropped_ko)} — 필요하면 영어로 직접 추가하세요." if dropped_ko else ""),
                 "explanation_en": f"Automatically translated and optimized your query into academic search terms (`{optimized_q}`).{typo_note_en}"
+                + (f" ⚠️ Untranslated words dropped: {', '.join(dropped_ko)} — add them in English if needed." if dropped_ko else ""),
+                "dropped_terms": dropped_ko
             }
 
     # 3. Handle English Natural Language Sentence or Free-form Words

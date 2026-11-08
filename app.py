@@ -420,6 +420,7 @@ def cb_on_kw_input_change():
         st.session_state.step1_confirmed = False
         return
     opt = optimize_search_query(raw)
+    st.session_state.last_dropped_terms = opt.get("dropped_terms", [])
     st.session_state.last_typo_pairs = opt.get("typo_pairs", [])
     if opt["was_modified"] and opt["optimized"]:
         st.session_state.last_nl_input = raw
@@ -454,6 +455,7 @@ def cb_auto_convert_and_confirm_step1():
         trigger_scroll_to("step-01-anchor", alert_msg=err_msg, target_step_num=1)
         return
     opt = optimize_search_query(raw)
+    st.session_state.last_dropped_terms = opt.get("dropped_terms", [])
     if opt.get("typo_pairs"):
         st.session_state.last_typo_pairs = opt["typo_pairs"]
     if opt["was_modified"] and opt["optimized"]:
@@ -482,6 +484,7 @@ def cb_auto_convert_and_confirm_step1():
 
 def cb_apply_typo_correction(corrected_text: str):
     opt = optimize_search_query(corrected_text)
+    st.session_state.last_dropped_terms = opt.get("dropped_terms", [])
     final_q = opt["optimized"] if (opt["was_modified"] and opt["optimized"]) else corrected_text
     st.session_state.kw_input = final_q
     st.session_state.step1_confirmed = True
@@ -532,6 +535,7 @@ def cb_clear_kw():
 
 def set_example_query(raw_example_str):
     opt = optimize_search_query(raw_example_str)
+    st.session_state.last_dropped_terms = opt.get("dropped_terms", [])
     st.session_state.last_typo_pairs = []
     if opt["was_modified"] and opt["optimized"]:
         st.session_state.last_nl_input = raw_example_str
@@ -720,6 +724,7 @@ def cb_confirm_all_steps_quick():
     raw = st.session_state.get("kw_input", "").strip()
     if raw:
         opt = optimize_search_query(raw)
+        st.session_state.last_dropped_terms = opt.get("dropped_terms", [])
         if opt["was_modified"] and opt["optimized"]:
             st.session_state.last_nl_input = raw
             st.session_state.kw_input = opt["optimized"]
@@ -1366,6 +1371,12 @@ with st.container(border=True):
             f"<br><span style='font-size:0.91rem; font-weight:600; color:#166534;'>• {tr('입력하셨던 자연어 원문', 'Original Question')}: \"{_html_mod.escape(st.session_state.last_nl_input)}\"</span>"
             if (st.session_state.last_nl_input and st.session_state.last_nl_input != current_kw_text) else ""
         )
+        dropped_terms = st.session_state.get("last_dropped_terms") or []
+        if dropped_terms and st.session_state.last_nl_input:
+            orig_note += (
+                f"<br><span style='font-size:0.9rem; font-weight:700; color:#B45309;'>⚠️ {tr('영어로 바꾸지 못해 검색식에서 빠진 단어', 'Untranslated words left out')}: "
+                f"{_html_mod.escape(', '.join(dropped_terms))} — {tr('필요하면 [검색식 다시 다듬기]에서 영어로 직접 추가하세요.', 'add them in English via [Edit Formula] if needed.')}</span>"
+            )
         st.markdown(_flat_html(f"""
         <div class="cta-confirmed-bar">
             <div>
