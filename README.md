@@ -70,7 +70,26 @@ docker compose up -d --build
 
 ---
 
-## 🌐 구매한 개인 도메인(Cloudflare)으로 외부 접속 연결하기 (Custom Domain Guide)
+## 🏠 시놀로지 DDNS로 외부 접속하기 (권장 · 무료) (Synology DDNS Guide)
+
+> **왜 각자 설치(Self-hosting)하나요?** OpenAlex API는 이메일·API 키 단위로 하루 사용량이 정해져 있습니다. 한 서버를 여러 사람이 함께 쓰면 금방 한도에 걸리므로, **각자 자신의 NAS·PC에 설치하고 본인 이메일(`OPENALEX_EMAIL`)과 키를 넣어 쓰는 것**을 권장합니다.
+
+도메인을 따로 사지 않아도 시놀로지의 무료 주소(`내아이디.synology.me`)로 `https://` 외부 접속을 만들 수 있습니다.
+
+1. **DDNS 주소 만들기:** DSM ➔ **제어판 ➔ 외부 액세스 ➔ DDNS ➔ 추가** ➔ 서비스 공급자 `Synology`, 호스트 이름(예: `myname.synology.me`) 입력, **"Let's Encrypt에서 인증서 가져오기"** 체크 ➔ 확인.
+2. **역방향 프록시 연결:** DSM ➔ **제어판 ➔ 로그인 포털 ➔ 고급 ➔ 역방향 프록시 ➔ 생성**
+   - 소스: 프로토콜 `HTTPS`, 호스트 이름 `myname.synology.me` (또는 `omni.myname.synology.me`), 포트 `443`
+   - 대상: 프로토콜 `HTTP`, 호스트 이름 `localhost`, 포트 `18502` (`.env`의 `APP_PORT`)
+   - **사용자 지정 머리글 ➔ 생성 ➔ WebSocket** 을 꼭 추가합니다 (Streamlit 화면은 WebSocket으로 동작하며, 빠지면 화면이 계속 로딩만 됩니다).
+3. **인증서 지정:** 제어판 ➔ 보안 ➔ 인증서 ➔ 설정에서 위 주소에 Let's Encrypt 인증서를 선택합니다.
+4. **공유기 포트포워딩:** 공유기에서 외부 `443` ➔ NAS `443` 을 열어 줍니다 (QuickConnect만으로는 Docker 앱에 접속할 수 없습니다).
+5. 외부에 공개되는 만큼 **`.env`의 `APP_PASSWORD`를 반드시 설정**하세요.
+
+> 이미 Nginx Proxy Manager를 쓰고 있다면 위 2단계 대신 NPM에서 `Forward Port 18502`, **Websockets Support 켜기**로 등록하면 됩니다.
+
+---
+
+## 🌐 (선택) 구매한 개인 도메인(Cloudflare)으로 외부 접속 연결하기 (Custom Domain Guide)
 
 본인이 구매하여 **Cloudflare(클라우드플레어)**로 관리 중인 도메인(예: `yourdomain.com`)이 있다면, 복잡한 공유기 포트포워딩(`80/443`)이나 SSL 보안인증서 발급 과정 없이 **Cloudflare Tunnel(`cloudflared`)**을 통해 3분 만에 안전한 `https://` 외부 접속 주소를 만들 수 있습니다.
 
