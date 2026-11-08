@@ -7,6 +7,12 @@ import os
 import re
 import hashlib
 import uuid
+import html as _html_mod
+
+
+def _flat_html(block: str) -> str:
+    """HTML 블록의 들여쓰기·빈 줄 제거 — 빈 변수 줄 뒤가 Markdown 코드블록으로 보이는 문제 방지."""
+    return "\n".join(ln.strip() for ln in block.splitlines() if ln.strip())
 
 st.set_page_config(
     page_title="OmniScholar | 학술 논문 인용·피인용 네트워크 분석 플랫폼",
@@ -1149,7 +1155,7 @@ with nav_c_gloss:
     )
 with nav_c2:
     st.button(
-        "🌐 언어 모드: 한국어 + English" if st.session_state.ui_lang == "KO_EN" else "🌐 Language: English Only",
+        "🌐 English Only 모드로 전환" if st.session_state.ui_lang == "KO_EN" else "🌐 Switch to 한국어 + English",
         on_click=toggle_language,
         use_container_width=True
     )
@@ -1357,19 +1363,19 @@ with st.container(border=True):
     else:
         # STEP 01 IS CONFIRMED! The pulsing primary button has disappeared and transformed into this Confirmed Banner!
         orig_note = (
-            f"<br><span style='font-size:0.91rem; font-weight:600; color:#166534;'>• {tr('입력하셨던 자연어 원문', 'Original Question')}: \"{st.session_state.last_nl_input}\"</span>"
+            f"<br><span style='font-size:0.91rem; font-weight:600; color:#166534;'>• {tr('입력하셨던 자연어 원문', 'Original Question')}: \"{_html_mod.escape(st.session_state.last_nl_input)}\"</span>"
             if (st.session_state.last_nl_input and st.session_state.last_nl_input != current_kw_text) else ""
         )
-        st.markdown(f"""
+        st.markdown(_flat_html(f"""
         <div class="cta-confirmed-bar">
             <div>
                 ✅ <b>{tr('[1단계 확정 완료!] 학술 검색식이 성공적으로 적용되었습니다:', '[Step 1 Confirmed!] Active Academic Search Formula:')}</b>
-                <code style="font-size:1.03rem; font-weight:800; color:#14532D; background:#FFFFFF; border:1.5px solid #86EFAC; padding:3px 10px; border-radius:7px; margin-left:6px;">{current_kw_text}</code>
+                <code style="font-size:1.03rem; font-weight:800; color:#14532D; background:#FFFFFF; border:1.5px solid #86EFAC; padding:3px 10px; border-radius:7px; margin-left:6px;">{_html_mod.escape(current_kw_text)}</code>
                 {orig_note}
             </div>
             <span class="cta-confirmed-pill">⬇️ {tr('이제 아래 2단계로 이동하세요', 'PROCEED TO STEP 2 BELOW')}</span>
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
         s1_edit_c1, s1_edit_c2 = st.columns([1, 1], gap="small")
         with s1_edit_c1:
@@ -1854,7 +1860,7 @@ with st.container(border=True):
             f"[2단계 확정 완료!] [{mode_short_footer} · {start_year}–{end_year}년 · 최대 {top_n}편] 설정이 확정되었습니다!",
             f"[Step 2 Confirmed!] [{start_year}–{end_year} · Max {top_n} papers] locked in!"
         )
-        st.markdown(f"""
+        st.markdown(_flat_html(f"""
         <div class="cta-confirmed-bar">
             <div>
                 ✅ <b>{s2_done_txt}</b>
@@ -1862,7 +1868,7 @@ with st.container(border=True):
             </div>
             <span class="cta-confirmed-pill">⬇️ {tr('이제 아래 3단계로 이동하세요', 'PROCEED TO STEP 3 BELOW')}</span>
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
 
 # ==========================================
@@ -2375,7 +2381,7 @@ with st.container(border=True):
             if not st.session_state.cart else
             tr(f"🎯 총 {len(st.session_state.cart)}개의 지정 학술지로 확정되었습니다!", f"🎯 Confirmed: {len(st.session_state.cart)} target journal(s)!")
         )
-        st.markdown(f"""
+        st.markdown(_flat_html(f"""
         <div class="cta-confirmed-bar">
             <div>
                 ✅ <b>{tr('[3단계 확정 완료!]', '[Step 3 Confirmed!]')} {scope_done_msg}</b>
@@ -2383,7 +2389,7 @@ with st.container(border=True):
             </div>
             <span class="cta-confirmed-pill">⬇️ {tr('이제 아래 4단계 수집 버튼을 클릭하세요!', 'CLICK START IN STEP 4 BELOW!')}</span>
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
 
 # ==========================================
@@ -2501,21 +2507,21 @@ with st.container(border=True):
     # 1. Prominent Search Formula Banner in STEP 04
     if active_formula_str:
         orig_input_html = (
-            f"<div style='font-size:0.91rem; color:#334155; margin-top:5px;'>💬 {tr('입력하셨던 자연어 원문', 'Original Input')}: \"{st.session_state.last_nl_input}\"</div>"
+            f"<div style='font-size:0.91rem; color:#334155; margin-top:5px;'>💬 {tr('입력하셨던 자연어 원문', 'Original Input')}: \"{_html_mod.escape(st.session_state.last_nl_input)}\"</div>"
             if (st.session_state.last_nl_input and st.session_state.last_nl_input != active_formula_str) else ""
         )
-        st.markdown(f"""
+        st.markdown(_flat_html(f"""
         <div style="background:linear-gradient(90deg, #EFF6FF 0%, #F8FAFC 100%); border:2px solid #60A5FA; border-left:7px solid #1D4ED8; border-radius:13px; padding:14px 18px; margin-bottom:14px;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:5px;">
                 <span style="font-size:0.95rem; font-weight:800; color:#1E40AF;">🎯 {tr('최종 적용될 학술 검색식 (Active Search Formula)', 'Active Academic Search Formula')}</span>
                 <span class="filter-pill-on">🟢 {tr('검색식 필터 작동 중', 'QUERY FILTER ACTIVE')}</span>
             </div>
             <div style="font-family:monospace; font-size:1.08rem; font-weight:800; color:#0F172A; background:#FFFFFF; border:1px solid #BFDBFE; padding:9px 14px; border-radius:9px; word-break:break-all;">
-                {active_formula_str}
+                {_html_mod.escape(active_formula_str)}
             </div>
             {orig_input_html}
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
     # 2. 6-Card Visual Pre-Flight Filter Grid
     is_deep = "Deep" in search_mode
@@ -2795,7 +2801,7 @@ with st.container(border=True):
                 f"[논문 데이터 수집 및 분석 완료!] 위 필터 설정으로 총 {len(st.session_state.df)}편의 핵심 논문 추출이 완료되어 바로 아래 [📊 최종 분석 리포트]에 표시되고 있습니다.",
                 f"[Extraction Complete!] All {len(st.session_state.df)} papers matching your active filters are displayed in the Final Report below."
             )
-            st.markdown(f"""
+            st.markdown(_flat_html(f"""
             <div class="cta-confirmed-bar">
                 <div>
                     ✅ <b>{s4_done_txt}</b><br>
@@ -2803,7 +2809,7 @@ with st.container(border=True):
                 </div>
                 <span class="cta-confirmed-pill">📊 {tr('아래 리포트 확인', 'REPORT READY BELOW')}</span>
             </div>
-            """, unsafe_allow_html=True)
+            """), unsafe_allow_html=True)
 
     # Preview of Upcoming Report Suite when no extraction has been executed yet (Eliminates empty bottom space!)
     if not has_extracted_df and not start_clicked and not st.session_state.trigger_rerun_pipeline:
@@ -3388,12 +3394,15 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                     "🏷️ One-Click Quick Filter Autocomplete from Extracted Results:"
                 )
                 st.markdown(f"<div style='font-size:0.88rem; font-weight:700; color:#1E40AF; margin-bottom:4px;'>{qf_hdr}</div>", unsafe_allow_html=True)
-                qf_cols = st.columns(len(quick_terms) + (1 if search_table else 0), gap="small")
+                # 이름을 자르지 않고 전부 보이도록 한 줄에 3개씩 배치
+                qf_items = list(quick_terms) + ([None] if search_table else [])
+                qf_cols = []
+                for qf_row_start in range(0, len(qf_items), 3):
+                    qf_cols.extend(st.columns(3, gap="small")[: len(qf_items[qf_row_start:qf_row_start + 3])])
                 for idx_qf, q_term in enumerate(quick_terms):
                     with qf_cols[idx_qf]:
-                        short_q = q_term if len(q_term) <= 24 else f"{q_term[:22]}.."
                         st.button(
-                            f"🔍 {short_q}",
+                            f"🔍 {q_term}",
                             key=f"btn_qf_table_{idx_qf}",
                             on_click=cb_set_table_search,
                             args=(q_term,),
@@ -3623,7 +3632,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                     )
 
                     links_block_html = f"<div style='margin-bottom:14px; font-size:0.95rem;'>{links_html}</div>" if links_html else ""
-                    st.markdown(f"""
+                    st.markdown(_flat_html(f"""
                     <div style='background:#FFFFFF; border:1.5px solid #93C5FD; border-left:6px solid #2563EB; border-radius:14px; padding:18px 22px; box-shadow: 0 4px 14px rgba(15,23,42,0.04); word-break: keep-all; overflow-wrap: break-word; margin-bottom:14px;'>
                         <div style='font-size:1.18rem; font-weight:800; color:#0F172A; margin-bottom:8px; line-height:1.42;'>{sel_row['Title']}</div>
                         <div style='font-size:0.97rem; color:#1E293B; margin-bottom:6px;'><b>👥 {tr('저자 (Authors)', 'Authors')}:</b> {sel_row['Authors'] or 'Unknown'} &nbsp;|&nbsp; <b>🏢 {tr('대표 기관 (Institution)', 'Institution')}:</b> {sel_row.get('Institution', 'N/A')}</div>
@@ -3641,7 +3650,7 @@ if st.session_state.df is not None and not st.session_state.df.empty:
                             <b>📝 {tr('논문 초록 (Abstract)', 'Abstract')}:</b><br>{abs_html}
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """), unsafe_allow_html=True)
 
                     st.markdown(
                         f"<div style='font-size:1.02rem; font-weight:800; color:#0F172A; margin-bottom:6px;'>"
