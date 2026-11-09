@@ -29,6 +29,8 @@ def _get_setting(key: str, default: str = "") -> str:
 OPENALEX_EMAIL = _get_setting("OPENALEX_EMAIL", "")
 OPENALEX_API_KEY = _get_setting("OPENALEX_API_KEY", "")
 APP_PASSWORD = _get_setting("APP_PASSWORD", "")
+# (선택) DeepL API 키 — 무료(Free) 키는 월 50만 글자, 넘으면 멈추고 과금 없음. 없으면 무료 번역기만 사용
+DEEPL_API_KEY = _get_setting("DEEPL_API_KEY", "").strip('"').strip("'")
 
 # Cloudflare WAF 설정 변수 (setup_waf.py 등 필요할 때 불러서 사용)
 CF_ZONE_ID = _get_setting("CF_ZONE_ID", "").strip('"').strip("'")

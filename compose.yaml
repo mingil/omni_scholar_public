@@ -12,6 +12,7 @@ services:
       - HOME=/tmp
       - OPENALEX_EMAIL=${OPENALEX_EMAIL:-}
       - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}
+      - DEEPL_API_KEY=${DEEPL_API_KEY:-}
       - APP_PASSWORD=${APP_PASSWORD:-}
       - CF_ZONE_ID=${CF_ZONE_ID:-}
       - CF_API_TOKEN=${CF_API_TOKEN:-}

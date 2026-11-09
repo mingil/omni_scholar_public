@@ -4,6 +4,7 @@ import functools
 import difflib
 import requests
 from modules.logger_setup import logger
+from modules.config import DEEPL_API_KEY
 
 # ==========================================
 # 🧠 Built-in Academic Korean-to-English Thesaurus
@@ -688,14 +689,41 @@ _TR_CACHE = {}            # 성공한 번역만 기억 (실패는 기억하지 �
 _TR_BLOCKED_UNTIL = {}    # 막힌(429 등) 번역기는 10분 쉬게 해 차단이 길어지지 않도록
 
 
+def _deepl_translate(text):
+    """DeepL 공식 API(키가 있을 때만). Free 키(:fx)는 api-free 주소, 그 외는 Pro 주소."""
+    if not DEEPL_API_KEY or _TR_BLOCKED_UNTIL.get("deepl", 0) > time.time():
+        return ""
+    host = "api-free.deepl.com" if DEEPL_API_KEY.endswith(":fx") else "api.deepl.com"
+    try:
+        res = requests.post(
+            f"https://{host}/v2/translate",
+            headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
+            data={"text": text, "source_lang": "KO", "target_lang": "EN-US"},
+            timeout=6,
+        )
+        if res.status_code == 200:
+            tr = res.json().get("translations") or []
+            return (tr[0].get("text") or "").strip() if tr else ""
+        # 456 = 이달 무료 한도 소진, 403 = 키 오류, 429 = 요청 과다
+        _TR_BLOCKED_UNTIL["deepl"] = time.time() + (3600 if res.status_code == 456 else 600)
+        logger.warning(f"[QUERY_OPT] DeepL HTTP {res.status_code} — 무료 번역기로 대체")
+    except Exception as e:
+        logger.debug(f"[QUERY_OPT] DeepL failed: {e}")
+    return ""
+
+
 def _translate_ko_to_en_fallback(text):
-    """사전에 없는 한국어를 영어로 번역. 무료 번역 3곳을 차례로 시도한다.
+    """사전에 없는 한국어를 영어로 번역. DeepL(키가 있을 때) → 무료 번역 3곳을 차례로 시도한다.
     전부 실패하면 빈 문자열 → 호출한 쪽에서 '빠진 단어'로 사용자에게 경고한다."""
     text = (text or "").strip()
     if not text:
         return ""
     if text in _TR_CACHE:
         return _TR_CACHE[text]
+    out = _deepl_translate(text)
+    if out and not re.search(r"[가-힣]", out):
+        _TR_CACHE[text] = out
+        return out
     now = time.time()
     for name, url, mk_params, parse in _TRANSLATORS:
         if _TR_BLOCKED_UNTIL.get(name, 0) > now:

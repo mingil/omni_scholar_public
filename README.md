@@ -50,6 +50,7 @@ cp .env.example .env
 | :--- | :--- | :--- |
 | `OPENALEX_EMAIL` | `""` | 본인의 이메일 주소를 입력하면 OpenAlex **Polite Pool(고속·안정 응답 트랙)**이 자동 활성화됩니다. (권장) |
 | `OPENALEX_API_KEY` | `""` | OpenAlex 유료/전용 API 키가 있는 경우에만 입력합니다. (선택) |
+| `DEEPL_API_KEY` | `""` | (선택, 권장) [DeepL API Free](https://www.deepl.com/pro-api) 키. 한국어 검색어를 영어로 바꿀 때 공식 번역을 사용해 안정적입니다. 월 50만 글자 무료이며 초과해도 과금 없이 멈춥니다. 비워두면 무료 번역 서비스를 사용합니다. |
 | `APP_PASSWORD` | `""` | 웹 접속 시 로그인 비밀번호를 걸고 싶을 때 설정합니다. **비워두면(`""`) 로그인 화면 없이 즉시 워크스페이스로 접속**됩니다. |
 | `APP_PORT` | `18502` | 호스트 서버에서 접속할 외부 포트 번호입니다 (`http://localhost:18502`). |
 
