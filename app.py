@@ -3487,8 +3487,6 @@ if st.session_state.df is not None and not st.session_state.df.empty:
 
             st.dataframe(
                 display_df,
-                # 필터로 행 수가 바뀌면 표를 새로 그려 "Row index is out of range" 오류 방지
-                key=f"full_matrix_{len(display_df)}_{hashlib.md5(str(search_table).encode()).hexdigest()[:8]}",
                 use_container_width=True,
                 hide_index=True,
                 height=460,
