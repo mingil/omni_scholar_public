@@ -1110,6 +1110,10 @@ def render_journal_html(info, lang="KO_EN"):
     works_val = int(info.get("works", 0) or 0)
     name_val = info.get("name", "Journal")
     issn_val = info.get("issn", "")
+    jcr = info.get("jcr") or {}
+    jcr_label = (f"{jcr.get('source', 'JCR')} JIF {jcr.get('jif')} · {jcr.get('best_quartile', '')}" if jcr.get("jif") is not None else "")
+    jcr_title = ("Clarivate JCR official Journal Impact Factor and best quartile (institutional subscription data)" if lang == "EN"
+                 else "Clarivate JCR 공식 영향력 지수(JIF)와 가장 좋은 분위 — 기관 구독 자료") + (f" · {jcr.get('label', '')}" if jcr.get("label") else "")
     if lang == "EN":
         issn_title = "ISSN: 8-digit international unique serial ID for this journal"
         if_title = "2Yr-IF (2-Year Impact Factor): Average citations received per paper published in the last 2 years"
@@ -1137,7 +1141,8 @@ def render_journal_html(info, lang="KO_EN"):
         f"🏛️ {name_val} <span title='{issn_title}' style='font-weight: 600; color: #475569; font-size: 0.9rem; cursor: help; border-bottom: 1px dotted #94A3B8;'>(ISSN 고유번호: {issn_val})</span>"
         f"</div>"
         f"<div style='display: flex; flex-wrap: wrap; gap: 6px;'>"
-        f"<span class='journal-badge badge-if' title='{if_title}' style='cursor: help;'>{if_label}</span>"
+        + (f"<span class='journal-badge badge-if' title='{jcr_title}' style='cursor: help; background:#ecfdf5; color:#065f46; border-color:#a7f3d0;'>🏅 {jcr_label}</span>" if jcr_label else "")
+        + f"<span class='journal-badge badge-if' title='{if_title}' style='cursor: help;'>{if_label}</span>"
         f"<span class='journal-badge badge-h' title='{h_title}' style='cursor: help;'>{h_label}</span>"
         f"<span class='journal-badge badge-pub' title='{pub_title}'>{pub_label}</span>"
         f"<span class='journal-badge badge-works' title='{works_title}'>{works_label}</span>"

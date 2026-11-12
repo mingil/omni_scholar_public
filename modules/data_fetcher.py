@@ -8,6 +8,7 @@ import time
 from modules.logger_setup import logger
 from modules.config import OPENALEX_EMAIL, OPENALEX_API_KEY, get_current_year
 from modules.query_optimizer import optimize_search_query
+from modules import jcr_lookup
 from requests.exceptions import Timeout, ReadTimeout
 
 class RateLimitException(Exception):
@@ -90,7 +91,9 @@ def parse_journal_data(r):
         "pub": r.get("host_organization_name") or "Unknown Publisher",
         "h_index": stats.get("h_index") or 0,
         "if_2yr": round(float(stats.get("2yr_mean_citedness") or 0.0), 2),
-        "works": r.get("works_count") or 0
+        "works": r.get("works_count") or 0,
+        # (선택) 내 서버의 JCR 조회 창구가 설정된 경우에만 공식 JIF·분위
+        "jcr": (jcr_lookup.lookup_many([(",".join(r.get("issn") or [r.get("issn_l") or ""]), r.get("display_name") or "")]).get((",".join(r.get("issn") or [r.get("issn_l") or ""]), r.get("display_name") or "")) if jcr_lookup.enabled() else None),
     }
 
 @st.cache_data(show_spinner=False, ttl=86400, max_entries=300)
@@ -141,6 +144,7 @@ def parse_work_metadata(w, count=None):
     loc = w.get("primary_location") or {}
     source = loc.get("source") or {} if isinstance(loc, dict) else {}
     journal = source.get("display_name") if isinstance(source, dict) else "Unknown"
+    journal_issn = (source.get("issn_l") or "") if isinstance(source, dict) else ""
     year = w.get("publication_year") or current_yr
     cites = w.get("cited_by_count") or 0
     doi = w.get("doi") or ""
@@ -200,6 +204,7 @@ def parse_work_metadata(w, count=None):
         "Authors": authors,
         "Institution": lead_institution,
         "Journal": journal,
+        "_ISSN": journal_issn,
         "Year": year,
         "Type": work_type,
         "Topic": topic_name,
@@ -481,6 +486,14 @@ def run_data_pipeline(
                     "OA_Status", "OA_Link", "DOI", "Abstract"
                 ]
 
+            if jcr_lookup.enabled() and "Journal" in df.columns:
+                try:
+                    keys = list(zip(df.get("_ISSN", pd.Series([""] * len(df))).fillna("").astype(str), df["Journal"].fillna("").astype(str)))
+                    got = jcr_lookup.lookup_many(keys)
+                    df["JCR"] = [jcr_lookup.short_label(got.get(k)) for k in keys]
+                    ordered_cols.insert(ordered_cols.index("Journal") + 1, "JCR")
+                except Exception as e:
+                    logger.info(f"[JCR] 열 추가 생략: {type(e).__name__}")
             df = df[[c for c in ordered_cols if c in df.columns]].head(top_n).reset_index(drop=True)
             df.insert(0, "Rank", range(1, len(df) + 1))
 
